@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>근로시간 분석</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#1e293b; --panel2:#162033; --border:#334155;
+    --text:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8;
+    --danger:#f87171; --warn:#fbbf24; --ok:#4ade80; --info:#818cf8;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; font-family:"Segoe UI","Malgun Gothic",sans-serif; background:var(--bg); color:var(--text); padding:24px; }
+  h1{font-size:22px; margin:0 0 4px;}
+  .sub{color:var(--muted); font-size:13px; margin-bottom:20px;}
+  .grid{display:grid; grid-template-columns:420px 1fr; gap:20px;}
+  @media (max-width:960px){ .grid{grid-template-columns:1fr;} }
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px 18px; margin-bottom:20px; }
+  .card h2{font-size:15px; margin:0 0 12px; color:var(--accent);}
+  .sub-card{ background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:12px 14px; margin-top:10px; }
+  .sub-card-title{ font-size:12px; font-weight:700; color:var(--info); margin-bottom:8px; }
+  label{display:block; font-size:12px; color:var(--muted); margin:10px 0 4px;}
+  input, select{ width:100%; padding:8px 10px; border-radius:6px; border:1px solid var(--border); background:#0d1829; color:var(--text); font-size:13px; }
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;}
+  button{ cursor:pointer; border:none; border-radius:6px; padding:9px 14px; font-size:13px; font-weight:600; }
+  .btn-primary{background:var(--accent); color:#04212f; width:100%; margin-top:14px;}
+  .btn-export{background:var(--ok); color:#04210f; width:100%; margin-top:10px;}
+  table{width:100%; border-collapse:collapse; font-size:12.5px;}
+  th, td{padding:7px 8px; border-bottom:1px solid var(--border); text-align:center; white-space:nowrap;}
+  th{color:var(--muted); font-weight:600; font-size:11.5px;}
+  td:first-child{text-align:left;}
+  tr:last-child td{border-bottom:none;}
+  .tag{display:inline-block; padding:3px 10px; border-radius:10px; font-size:12px; font-weight:700;}
+  .tag-ok{background:#14532d; color:var(--ok);}
+  .tag-warn{background:#78350f; color:var(--warn);}
+  .tag-danger{background:#7f1d1d; color:var(--danger);}
+  .tag-info{background:#1e1b4b; color:var(--info);}
+  .size-badge{ display:flex; align-items:center; gap:10px; padding:12px; border-radius:8px; background:var(--panel2); border:1px solid var(--border); margin-top:10px; }
+  .size-badge .v{font-size:14px; font-weight:700;}
+  .summary-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px;}
+  @media (max-width:700px){.summary-grid{grid-template-columns:repeat(2,1fr);}}
+  .stat{background:var(--panel2); border:1px solid var(--border); border-radius:8px; padding:12px;}
+  .stat .v{font-size:18px; font-weight:700;}
+  .stat .l{font-size:11px; color:var(--muted); margin-top:2px;}
+  .section-title{font-size:13.5px; font-weight:700; color:var(--accent); margin:18px 0 8px; padding-bottom:4px; border-bottom:1px solid var(--border);}
+  .empty{color:var(--muted); font-size:13px; text-align:center; padding:30px 0;}
+  .vbox{ margin-top:16px; }
+  .vi{ display:flex; gap:8px; align-items:flex-start; padding:9px 11px; border-radius:8px; margin-bottom:7px; font-size:12.5px; line-height:1.6; }
+  .vi.danger{background:#3b1212; border:1px solid #7f1d1d;}
+  .vi.warn{background:#3b2a0c; border:1px solid #78350f;}
+  .vi.ok{background:#0f2e1e; border:1px solid #14532d;}
+  .vi.info{background:#1a1b38; border:1px solid #3730a3;}
+  .toggle-group{ display:flex; gap:8px; margin-top:6px; }
+  .toggle-btn{ flex:1; padding:8px; border-radius:6px; border:1px solid var(--border); background:var(--panel2); color:var(--muted); cursor:pointer; font-size:12.5px; text-align:center; }
+  .toggle-btn.active{ background:#1e3a5f; border-color:var(--accent); color:var(--accent); font-weight:700; }
+  .hidden{display:none;}
+  .divider{ border:none; border-top:1px solid var(--border); margin:12px 0; }
+</style>
+</head>
+<body>
+
+<h1>근로시간 분석</h1>
+<div class="sub">상시근로자 수로 5인미만/이상을 먼저 판정 → 고정근무·주야교대근무 조건 입력 → 연장·야간근로 위반 체크 및 엑셀 양식 출력</div>
+
+<div class="grid">
+<!-- ─────────── LEFT ─────────── -->
+<div>
+  <div class="card">
+    <h2>① 사업장 규모 판정</h2>
+    <label>회사명</label>
+    <input id="f-company" placeholder="예: 황정푸드">
+    <label>상시근로자 수</label>
+    <input id="f-empcount" type="number" min="1" value="4" oninput="updateSizeBadge()">
+    <div id="size-badge" class="size-badge"></div>
+  </div>
+
+  <div class="card">
+    <h2>② 근무형태 선택</h2>
+    <div class="toggle-group">
+      <div class="toggle-btn active" id="btn-fixed" onclick="setMode('fixed')">고정근무</div>
+      <div class="toggle-btn" id="btn-shift" onclick="setMode('shift')">주야간 교대근무</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>③ 근로조건 입력</h2>
+    <label>대상 근로자명</label>
+    <input id="f-name" placeholder="예: 홍길동">
+
+    <!-- 고정근무 폼 -->
+    <div id="form-fixed">
+      <div class="sub-card">
+        <div class="sub-card-title">근무 시간</div>
+        <div class="row2">
+          <div><label>시업 시간</label><input id="f-start" type="time" value="09:00"></div>
+          <div><label>종업 시간</label><input id="f-end" type="time" value="18:00"></div>
+        </div>
+        <div class="row2">
+          <div><label>휴게시간(분)</label><input id="f-break" type="number" min="0" value="60"></div>
+          <div><label>주 근무일수</label><input id="f-days" type="number" min="1" max="7" value="6"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 교대근무 폼 -->
+    <div id="form-shift" class="hidden">
+      <div class="sub-card">
+        <div class="sub-card-title">☀ 주간조 근무 조건</div>
+        <div class="row2">
+          <div><label>시업</label><input id="s-day-start" type="time" value="06:00"></div>
+          <div><label>종업</label><input id="s-day-end" type="time" value="14:00"></div>
+        </div>
+        <div class="row2">
+          <div><label>휴게(분)</label><input id="s-day-break" type="number" min="0" value="60"></div>
+          <div><label>주간조 근무일수/주기</label><input id="s-day-days" type="number" min="0" max="7" value="4"></div>
+        </div>
+      </div>
+      <div class="sub-card">
+        <div class="sub-card-title">🌙 야간조 근무 조건</div>
+        <div class="row2">
+          <div><label>시업</label><input id="s-night-start" type="time" value="22:00"></div>
+          <div><label>종업</label><input id="s-night-end" type="time" value="06:00"></div>
+        </div>
+        <div class="row2">
+          <div><label>휴게(분)</label><input id="s-night-break" type="number" min="0" value="60"></div>
+          <div><label>야간조 근무일수/주기</label><input id="s-night-days" type="number" min="0" max="7" value="4"></div>
+        </div>
+      </div>
+      <div class="sub-card">
+        <div class="sub-card-title">교대 주기</div>
+        <label>교대 주기(주) — 예: 1주 주간 후 1주 야간이면 2</label>
+        <input id="s-cycle" type="number" min="1" value="2">
+      </div>
+    </div>
+
+    <hr class="divider">
+    <div class="row2">
+      <div><label>적용연도 최저시급(원)</label><input id="f-minwage" type="number" min="0" value="10320"></div>
+      <div><label>현재 월 총임금(비과세 제외, 원)</label><input id="f-curpay" type="number" min="0" value="0"></div>
+    </div>
+
+    <button class="btn-primary" onclick="runAnalysis()">▶ 근로시간 분석 실행</button>
+    <button class="btn-export" onclick="exportExcel()">↓ 엑셀 양식으로 출력</button>
+  </div>
+</div>
+
+<!-- ─────────── RIGHT ─────────── -->
+<div>
+  <div class="card">
+    <h2>분석 결과</h2>
+    <div id="result-area"><div class="empty">왼쪽에서 조건을 입력한 후 "근로시간 분석 실행"을 눌러주세요.</div></div>
+  </div>
+</div>
+</div>
+
+<script>
+let analysis = null;
+let mode = 'fixed'; // 'fixed' | 'shift'
+
+function setMode(m){
+  mode = m;
+  document.getElementById('form-fixed').classList.toggle('hidden', m!=='fixed');
+  document.getElementById('form-shift').classList.toggle('hidden', m!=='shift');
+  document.getElementById('btn-fixed').classList.toggle('active', m==='fixed');
+  document.getElementById('btn-shift').classList.toggle('active', m==='shift');
+}
+
+function updateSizeBadge(){
+  const cnt = parseInt(document.getElementById('f-empcount').value || '0', 10);
+  const isOver5 = cnt >= 5;
+  document.getElementById('size-badge').innerHTML = isOver5
+    ? `<span class="tag tag-warn">5인 이상 사업장</span><span class="v">가산수당 적용 — 연장·야간·휴일 각 1.5배(0.5배 가산)</span>`
+    : `<span class="tag tag-ok">5인 미만 사업장</span><span class="v">근로기준법 제53조(연장한도)·가산수당 적용 제외</span>`;
+  return isOver5;
+}
+
+function toMin(t){ const [h,m]=t.split(':').map(Number); return h*60+m; }
+
+/* 야간근로 시간 계산 (22:00~06:00 겹치는 시간, 단위:시간) */
+function calcNightHours(startStr, endStr){
+  let s = toMin(startStr);
+  let e = toMin(endStr);
+  if(e <= s) e += 1440; // 자정 초과 연장
+  // 야간 구간: [1320,1440] (당일 22~24시) + [1440,1800] (익일 0~6시)
+  const wins = [[1320,1440],[1440,1800]];
+  let mins = 0;
+  for(const [ns,ne] of wins) mins += Math.max(0, Math.min(e,ne) - Math.max(s,ns));
+  return mins/60;
+}
+
+function calcAnalysis(){
+  const company = document.getElementById('f-company').value.trim() || '회사명';
+  const name    = document.getElementById('f-name').value.trim()    || '근로자';
+  const empCount = parseInt(document.getElementById('f-empcount').value||'0',10);
+  const isOver5  = empCount >= 5;
+  const premiumOT = isOver5 ? 1.5 : 1;    // 연장근로 가산 배수
+  const premiumNT = isOver5 ? 0.5 : 0;    // 야간 추가 가산율 (×0.5 추가지급)
+  const minWage  = parseFloat(document.getElementById('f-minwage').value||'0');
+  const curPay   = parseFloat(document.getElementById('f-curpay').value||'0');
+
+  /* ── 근무시간 집계 ── */
+  let shifts = []; // {label, start, end, breakMin, days, nightHoursPerDay, dailyHours}
+  let avgWeeklyHours, avgWeeklyNight, cycleWeeks;
+
+  if(mode === 'fixed'){
+    const start    = document.getElementById('f-start').value;
+    const end      = document.getElementById('f-end').value;
+    const breakMin = parseFloat(document.getElementById('f-break').value||'0');
+    const days     = parseFloat(document.getElementById('f-days').value||'0');
+    const s = toMin(start), e0 = toMin(end);
+    const eff = toMin(end) <= toMin(start) ? (toMin(end)+1440-toMin(start)) : (toMin(end)-toMin(start));
+    const dailyHours = Math.max(0, eff/60 - breakMin/60);
+    const nightPerDay = calcNightHours(start, end);
+    shifts = [{label:'일반근로', start, end, breakMin, days, dailyHours, nightPerDay}];
+    avgWeeklyHours = dailyHours * days;
+    avgWeeklyNight = nightPerDay * days;
+    cycleWeeks = 1;
+  } else {
+    const ds  = document.getElementById('s-day-start').value;
+    const de  = document.getElementById('s-day-end').value;
+    const db  = parseFloat(document.getElementById('s-day-break').value||'0');
+    const dd  = parseFloat(document.getElementById('s-day-days').value||'0');
+    const ns  = document.getElementById('s-night-start').value;
+    const ne  = document.getElementById('s-night-end').value;
+    const nb  = parseFloat(document.getElementById('s-night-break').value||'0');
+    const nd  = parseFloat(document.getElementById('s-night-days').value||'0');
+    cycleWeeks = parseFloat(document.getElementById('s-cycle').value||'2');
+
+    const dEff = toMin(de)>toMin(ds) ? toMin(de)-toMin(ds) : toMin(de)+1440-toMin(ds);
+    const nEff = toMin(ne)>toMin(ns) ? toMin(ne)-toMin(ns) : toMin(ne)+1440-toMin(ns);
+    const dayH   = Math.max(0, dEff/60 - db/60);
+    const nightH = Math.max(0, nEff/60 - nb/60);
+    const dayNight   = calcNightHours(ds, de);
+    const nightNight = calcNightHours(ns, ne);
+
+    shifts = [
+      {label:'주간조', start:ds, end:de, breakMin:db, days:dd, dailyHours:dayH, nightPerDay:dayNight},
+      {label:'야간조', start:ns, end:ne, breakMin:nb, days:nd, dailyHours:nightH, nightPerDay:nightNight}
+    ];
+
+    const totalCycleHours = dayH*dd + nightH*nd;
+    const totalCycleNight = dayNight*dd + nightNight*nd;
+    avgWeeklyHours = totalCycleHours / cycleWeeks;
+    avgWeeklyNight = totalCycleNight / cycleWeeks;
+  }
+
+  /* ── 법적 근로시간 분류 ── */
+  const legalWeekly    = Math.min(avgWeeklyHours, 40);
+  const overtimeWeekly = Math.max(0, avgWeeklyHours - 40);
+
+  /* ── 위반 체크 ── */
+  const violations = [];
+
+  // 주 52시간 초과 (5인이상)
+  if(isOver5 && avgWeeklyHours > 52){
+    violations.push({level:'danger', msg:`<b>주 52시간 초과 위반</b> (근로기준법 제53조) — 주 평균 근무시간 <b>${avgWeeklyHours.toFixed(2)}h</b>로 법정 한도(52h)를 <b>${(avgWeeklyHours-52).toFixed(2)}h</b> 초과. 즉시 시정 필요.`});
+  }
+
+  // 연장근로 12시간 초과 (5인이상)
+  if(isOver5 && overtimeWeekly > 12){
+    violations.push({level:'danger', msg:`<b>연장근로 한도 초과 위반</b> (근로기준법 제53조) — 주 평균 연장근로 <b>${overtimeWeekly.toFixed(2)}h</b>로 법정 한도(12h/주)를 <b>${(overtimeWeekly-12).toFixed(2)}h</b> 초과.`});
+  } else if(isOver5 && overtimeWeekly > 8){
+    violations.push({level:'warn', msg:`연장근로 <b>${overtimeWeekly.toFixed(2)}h/주</b> — 법정 한도(12h)에 근접. 운영 방식 검토 권장.`});
+  }
+
+  // 야간근로 알림 (5인이상 0.5배 가산)
+  if(isOver5 && avgWeeklyNight > 0){
+    violations.push({level:'info', msg:`야간근로(22:00~06:00) 주 평균 <b>${avgWeeklyNight.toFixed(2)}h</b> 발생 — 통상임금의 <b>50% 가산수당</b> 지급 의무 (근로기준법 제56조 제3항).`});
+  }
+
+  // 휴게시간 체크
+  shifts.forEach(sh=>{
+    if(sh.dailyHours >= 8 && sh.breakMin < 60){
+      violations.push({level:'danger', msg:`<b>[${sh.label}] 휴게시간 부족</b> — 8시간 이상 근무 시 휴게 1시간 이상 필요 (현재 ${sh.breakMin}분). 근로기준법 제54조 위반.`});
+    } else if(sh.dailyHours >= 4 && sh.breakMin < 30){
+      violations.push({level:'warn', msg:`<b>[${sh.label}] 휴게시간 부족</b> — 4시간 이상 근무 시 휴게 30분 이상 필요 (현재 ${sh.breakMin}분). 근로기준법 제54조.`});
+    }
+  });
+
+  /* ── 월 환산 임금 ── */
+  const monthFactor = 4.345;
+  const baseMonthlyHours     = Math.round((legalWeekly + 8) * monthFactor);
+  const overtimeMonthlyRaw   = overtimeWeekly * monthFactor;
+  const overtimeMonthlyPaidH = Math.ceil(overtimeMonthlyRaw * premiumOT);
+  const nightMonthlyHours    = Math.round(avgWeeklyNight * monthFactor);
+
+  // 최저임금 기준 적법임금
+  const minBasePay     = Math.round(baseMonthlyHours * minWage / 10) * 10;
+  const minOvertimePay = Math.round(overtimeMonthlyPaidH * minWage / 10) * 10;
+  const minNightPay    = isOver5 ? Math.round(nightMonthlyHours * minWage * premiumNT / 10) * 10 : 0;
+  const minTotalPay    = minBasePay + minOvertimePay + minNightPay;
+
+  // 현재 지급임금 역산 분개
+  const totalPaidH = baseMonthlyHours + overtimeMonthlyPaidH + (isOver5 ? nightMonthlyHours : 0);
+  const impliedHW  = totalPaidH > 0 ? curPay / totalPaidH : 0;
+  const curBasePay     = Math.round(baseMonthlyHours * impliedHW);
+  const curOvertimePay = Math.round(overtimeMonthlyPaidH * impliedHW);
+  const curNightPay    = isOver5 ? Math.round(nightMonthlyHours * impliedHW) : 0;
+
+  // 최저임금 위반
+  if(curPay > 0 && curPay < minTotalPay){
+    violations.push({level:'danger', msg:`<b>최저임금 위반 가능성</b> — 현재 월 총임금(${fmt(curPay)}원)이 최저임금 기준 적법임금(${fmt(minTotalPay)}원)보다 <b>${fmt(minTotalPay-curPay)}원 부족</b>. 환산시급 약 ${fmt(impliedHW)}원 (최저시급 ${fmt(minWage)}원).`});
+  } else if(curPay > 0){
+    violations.push({level:'ok', msg:`최저임금 기준 충족 — 현재 지급 임금(${fmt(curPay)}원) ≥ 적법임금(${fmt(minTotalPay)}원). 환산시급 약 ${fmt(impliedHW)}원.`});
+  }
+
+  return {
+    company, name, empCount, isOver5, premiumOT, premiumNT, mode,
+    shifts, cycleWeeks, avgWeeklyHours, avgWeeklyNight,
+    legalWeekly, overtimeWeekly,
+    baseMonthlyHours, overtimeMonthlyRaw, overtimeMonthlyPaidH,
+    nightMonthlyHours, minWage,
+    minBasePay, minOvertimePay, minNightPay, minTotalPay,
+    curPay, impliedHW, curBasePay, curOvertimePay, curNightPay,
+    violations
+  };
+}
+
+function fmt(n){ return Math.round(n).toLocaleString('ko-KR'); }
+
+function renderResult(a){
+  const sizeTag = a.isOver5
+    ? `<span class="tag tag-warn">5인 이상 (가산 적용)</span>`
+    : `<span class="tag tag-ok">5인 미만 (가산 제외)</span>`;
+
+  /* 요약 카드 */
+  const extra52 = a.isOver5 && a.avgWeeklyHours > 52;
+  const extraOT = a.isOver5 && a.overtimeWeekly > 12;
+  const weekColor = extra52||extraOT ? 'var(--danger)' : (a.avgWeeklyHours>48?'var(--warn)':'var(--ok)');
+
+  const shiftRows = a.shifts.map(s=>
+    `<tr><td>${s.label}</td><td>${s.start}~${s.end} (휴게 ${s.breakMin}분)</td><td>${s.dailyHours.toFixed(2)}h × ${s.days}일${a.mode==='shift'?'/주기':''}</td><td>${(s.dailyHours*s.days).toFixed(2)}h</td><td>${(s.nightPerDay*s.days).toFixed(2)}h</td></tr>`
+  ).join('');
+
+  const nightRowMinwage = a.isOver5 && a.nightMonthlyHours > 0
+    ? `<tr><td>야간근로수당(×0.5)</td><td>${(a.minNightPay/a.minTotalPay*100||0).toFixed(2)}%</td><td>${a.nightMonthlyHours} H</td><td>${fmt(a.minNightPay)}원</td></tr>` : '';
+  const nightRowCur = a.isOver5 && a.nightMonthlyHours > 0
+    ? `<tr><td>야간근로수당</td><td>${(a.curNightPay/(a.curPay||1)*100).toFixed(2)}%</td><td>${a.nightMonthlyHours} H</td><td>${fmt(a.curNightPay)}원</td></tr>` : '';
+
+  const vcnt = a.violations.filter(v=>v.level==='danger').length;
+  const violHtml = a.violations.map(v=>{
+    const icons = {danger:'⛔',warn:'⚠',ok:'✔',info:'ℹ'};
+    return `<div class="vi ${v.level}">${icons[v.level]} ${v.msg}</div>`;
+  }).join('') || '<div class="vi ok">✔ 현재 입력된 조건에서 발견된 위반/주의사항이 없습니다.</div>';
+
+  document.getElementById('result-area').innerHTML = `
+    <div class="summary-grid">
+      <div class="stat"><div class="v">${sizeTag}</div><div class="l">사업장 구분 (상시 ${a.empCount}명)</div></div>
+      <div class="stat"><div class="v" style="color:${weekColor}">${a.avgWeeklyHours.toFixed(1)}h</div><div class="l">주 평균 근무시간${a.mode==='shift'?` (${a.cycleWeeks}주 교대 평균)`:''}</div></div>
+      <div class="stat"><div class="v" style="color:${extraOT?'var(--danger)':'inherit'}">${a.overtimeWeekly.toFixed(1)}h</div><div class="l">주 평균 연장근로 ${a.isOver5?'(한도 12h)':''}</div></div>
+      ${a.avgWeeklyNight>0?`<div class="stat"><div class="v" style="color:var(--info)">${a.avgWeeklyNight.toFixed(1)}h</div><div class="l">주 평균 야간근로(22~06)</div></div>`:''}
+    </div>
+
+    <div class="section-title">⛔ 위반 및 주의 사항</div>
+    <div class="vbox">${violHtml}</div>
+
+    <div class="section-title">1.1 근로시간 분석 (${a.name})</div>
+    <table>
+      <tr><th>구분</th><th>근무시간</th><th>산식</th><th>주 근무시간</th><th>주 야간시간</th></tr>
+      ${shiftRows}
+      <tr><td><b>계 (주 평균)</b></td><td></td><td>${a.mode==='shift'?`교대 ${a.cycleWeeks}주 합산 ÷ ${a.cycleWeeks}`:''}</td><td><b>${a.avgWeeklyHours.toFixed(2)}h</b></td><td><b>${a.avgWeeklyNight.toFixed(2)}h</b></td></tr>
+    </table>
+
+    <div class="section-title">2.1 근로시간에 따른 임금구성 (월 환산)</div>
+    <table>
+      <tr><th>구분</th><th>산식</th><th>시간(주)</th><th>급여시간(월)</th></tr>
+      <tr><td>기본근로</td><td>(법정 40h+유급주휴 8h)×4.345</td><td>${a.legalWeekly.toFixed(2)}h</td><td>${a.baseMonthlyHours} H</td></tr>
+      <tr><td>연장근로 (×${a.premiumOT}배)</td><td>${a.overtimeWeekly.toFixed(2)}h×4.345×${a.premiumOT}</td><td>${a.overtimeWeekly.toFixed(2)}h</td><td>${a.overtimeMonthlyPaidH} H</td></tr>
+      ${a.isOver5&&a.avgWeeklyNight>0?`<tr><td>야간근로 (추가 ×0.5)</td><td>${a.avgWeeklyNight.toFixed(2)}h×4.345</td><td>${a.avgWeeklyNight.toFixed(2)}h</td><td>${a.nightMonthlyHours} H</td></tr>`:''}
+      <tr><td><b>계</b></td><td></td><td></td><td><b>${a.baseMonthlyHours+a.overtimeMonthlyPaidH+(a.isOver5?a.nightMonthlyHours:0)} H</b></td></tr>
+    </table>
+
+    <div class="section-title">3.1 최저임금(${fmt(a.minWage)}원) 기준 적법임금</div>
+    <table>
+      <tr><th>구분</th><th>비율</th><th>시간</th><th>급여</th></tr>
+      <tr><td>기본급</td><td>${(a.minBasePay/a.minTotalPay*100||0).toFixed(2)}%</td><td>${a.baseMonthlyHours} H</td><td>${fmt(a.minBasePay)}원</td></tr>
+      <tr><td>연장근로수당(×${a.premiumOT})</td><td>${(a.minOvertimePay/a.minTotalPay*100||0).toFixed(2)}%</td><td>${a.overtimeMonthlyPaidH} H</td><td>${fmt(a.minOvertimePay)}원</td></tr>
+      ${nightRowMinwage}
+      <tr><td><b>계 (최저임금 적용)</b></td><td>100%</td><td>${a.baseMonthlyHours+a.overtimeMonthlyPaidH+(a.isOver5?a.nightMonthlyHours:0)} H</td><td><b>${fmt(a.minTotalPay)}원</b></td></tr>
+    </table>
+
+    ${a.curPay>0?`
+    <div class="section-title">3.2 현행 임금 구성 분개내역</div>
+    <table>
+      <tr><th>구분</th><th>비율</th><th>시간</th><th>급여</th></tr>
+      <tr><td>기본급</td><td>${(a.curBasePay/(a.curPay||1)*100).toFixed(2)}%</td><td>${a.baseMonthlyHours} H</td><td>${fmt(a.curBasePay)}원</td></tr>
+      <tr><td>연장근로수당</td><td>${(a.curOvertimePay/(a.curPay||1)*100).toFixed(2)}%</td><td>${a.overtimeMonthlyPaidH} H</td><td>${fmt(a.curOvertimePay)}원</td></tr>
+      ${nightRowCur}
+      <tr><td><b>계 (현재 총임금)</b></td><td>100%</td><td>—</td><td><b>${fmt(a.curPay)}원</b></td></tr>
+    </table>
+    <div style="font-size:12px;color:var(--muted);margin-top:6px">※ 역산시급: 약 ${fmt(a.impliedHW)}원 / 최저시급 ${fmt(a.minWage)}원 대비 ${a.impliedHW>=a.minWage?'<span style="color:var(--ok)">▲ 충족':'<span style="color:var(--danger)">▼ 미달'} ${fmt(Math.abs(a.impliedHW-a.minWage))}원</span></div>
+    `:''}
+  `;
+}
+
+async function exportExcel(){
+  if(!analysis){ alert('먼저 "근로시간 분석 실행"을 눌러주세요.'); return; }
+  const a = analysis;
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('근로시간분석');
+  ws.columns = [{width:2},{width:16},{width:14},{width:14},{width:12},{width:10},{width:12},{width:16},{width:14}];
+
+  const bold = {bold:true};
+  const titleFont = {bold:true, size:13};
+  const accFmt = '_-* #,##0_-;[Red]-* #,##0_-;_-* "-"_-;_-@_-';
+  const pctFmt = '0.00"%"';
+  const thin = {style:'thin', color:{argb:'FFAAAAAA'}};
+  const border = {top:thin,bottom:thin,left:thin,right:thin};
+  const dangerFont = {bold:true, color:{argb:'FFCC0000'}};
+  const okFont = {bold:true, color:{argb:'FF166534'}};
+  const warnFont = {bold:true, color:{argb:'FF92400E'}};
+
+  function cell(r, c){ return ws.getCell(r, c); }
+  function setRow(r, vals, opts={}){
+    vals.forEach((v,i)=>{
+      const c = ws.getCell(r, i+2);
+      c.value = v;
+      if(opts.bold) c.font = bold;
+      if(opts.border) c.border = border;
+      c.alignment = {vertical:'middle', horizontal: i===0?'left':'center', wrapText:!!opts.wrap};
+    });
+  }
+
+  let r = 1;
+  ws.mergeCells(`B${r}:I${r}`);
+  cell(r,'B').value = `${a.company} 근로시간 분석 (포괄임금제)`;
+  cell(r,'B').font = titleFont; r++;
+
+  ws.mergeCells(`B${r}:I${r}`);
+  cell(r,'B').value = a.isOver5 ? '* 5인 이상 사업장 : 가산수당 적용 (연장·야간·휴일 각 1.5배/0.5배)' : '* 5인 미만 사업장 : 가산수당 제외 적용';
+  cell(r,'B').font = a.isOver5 ? bold : {}; r++;
+
+  const modeLabel = a.mode==='shift' ? `교대근무 (${a.cycleWeeks}주 주기) / 대상자: ${a.name} / 상시 ${a.empCount}명` : `고정근무 / 대상자: ${a.name} / 상시 ${a.empCount}명`;
+  ws.mergeCells(`B${r}:I${r}`);
+  cell(r,'B').value = modeLabel; r+=2;
+
+  // 위반사항
+  cell(r,'B').value = '◆ 위반 및 주의 사항'; cell(r,'B').font = bold; r++;
+  a.violations.forEach(v=>{
+    ws.mergeCells(`B${r}:I${r}`);
+    const icons = {danger:'⛔',warn:'⚠',ok:'✔',info:'ℹ'};
+    const raw = v.msg.replace(/<[^>]+>/g,'');
+    cell(r,'B').value = `${icons[v.level]} ${raw}`;
+    cell(r,'B').font = v.level==='danger'?dangerFont : v.level==='warn'?warnFont : v.level==='ok'?okFont : {};
+    cell(r,'B').alignment = {wrapText:true};
+    ws.getRow(r).height = 20;
+    r++;
+  }); r++;
+
+  // 1.1
+  cell(r,'B').value = '1.1 근로시간 분석'; cell(r,'B').font = bold; r++;
+  setRow(r,['구분','근무시간','산식','주 근무시간','주 야간시간'],{bold:true,border:true}); r++;
+  a.shifts.forEach(s=>{
+    setRow(r,[s.label,`${s.start}~${s.end} (휴게 ${s.breakMin}분)`,`${s.dailyHours.toFixed(2)}h×${s.days}일`, s.dailyHours*s.days, s.nightPerDay*s.days],{border:true});
+    r++;
+  });
+  setRow(r,['계 (주 평균)','','', a.avgWeeklyHours, a.avgWeeklyNight],{bold:true,border:true}); r+=2;
+
+  // 2.1
+  cell(r,'B').value = '2.1 근로시간에 따른 임금구성 (월 환산)'; cell(r,'B').font = bold; r++;
+  setRow(r,['구분','산식','시간(주)','급여시간(월)'],{bold:true,border:true}); r++;
+  setRow(r,['기본근로','(40h+유급주휴8h)×4.345', a.legalWeekly, a.baseMonthlyHours],{border:true}); r++;
+  setRow(r,[`연장근로(×${a.premiumOT})`,`${a.overtimeWeekly.toFixed(2)}h×4.345×${a.premiumOT}`, a.overtimeWeekly, a.overtimeMonthlyPaidH],{border:true}); r++;
+  if(a.isOver5 && a.avgWeeklyNight>0){
+    setRow(r,['야간근로(추가×0.5)',`${a.avgWeeklyNight.toFixed(2)}h×4.345`, a.avgWeeklyNight, a.nightMonthlyHours],{border:true}); r++;
+  }
+  setRow(r,['계','','', a.baseMonthlyHours+a.overtimeMonthlyPaidH+(a.isOver5?a.nightMonthlyHours:0)],{bold:true,border:true}); r+=2;
+
+  // 3.1
+  cell(r,'B').value = `3.1 최저임금(${a.minWage}원) 기준 적법임금`; cell(r,'B').font = bold; r++;
+  setRow(r,['구분','비율','시간','급여'],{bold:true,border:true}); r++;
+  [[`기본급`, a.minBasePay/a.minTotalPay, a.baseMonthlyHours, a.minBasePay],
+   [`연장근로수당(×${a.premiumOT})`, a.minOvertimePay/a.minTotalPay, a.overtimeMonthlyPaidH, a.minOvertimePay],
+   ...(a.isOver5&&a.nightMonthlyHours>0?[[`야간근로수당(×0.5)`, a.minNightPay/a.minTotalPay, a.nightMonthlyHours, a.minNightPay]]:[]),
+   ['계 (최저임금 적용)', 1, a.baseMonthlyHours+a.overtimeMonthlyPaidH+(a.isOver5?a.nightMonthlyHours:0), a.minTotalPay]
+  ].forEach((row, i, arr)=>{
+    const isBold = i===arr.length-1;
+    setRow(r, row, {border:true, bold:isBold});
+    ws.getCell(r, 3).numFmt = pctFmt; ws.getCell(r, 5).numFmt = accFmt;
+    r++;
+  }); r++;
+
+  // 3.2
+  if(a.curPay>0){
+    cell(r,'B').value = '3.2 현행 임금 구성 분개내역'; cell(r,'B').font = bold; r++;
+    setRow(r,['구분','비율','시간','급여'],{bold:true,border:true}); r++;
+    [['기본급', a.curPay?a.curBasePay/a.curPay:0, a.baseMonthlyHours, a.curBasePay],
+     ['연장근로수당', a.curPay?a.curOvertimePay/a.curPay:0, a.overtimeMonthlyPaidH, a.curOvertimePay],
+     ...(a.isOver5&&a.nightMonthlyHours>0?[['야간근로수당', a.curPay?a.curNightPay/a.curPay:0, a.nightMonthlyHours, a.curNightPay]]:[]),
+     ['계 (현재 총임금)', 1, '—', a.curPay]
+    ].forEach((row,i,arr)=>{
+      setRow(r,row,{border:true, bold:i===arr.length-1});
+      ws.getCell(r,3).numFmt = pctFmt; ws.getCell(r,5).numFmt = accFmt;
+      r++;
+    }); r++;
+
+    cell(r,'B').value = '현재 받고있는 근로자의 총임금액 (비과세 제외)'; r++;
+    cell(r,'B').value = a.curPay; cell(r,'B').numFmt = accFmt; r++;
+    cell(r,'B').value = '환산 시급'; cell(r,'C').value = Math.round(a.impliedHW); cell(r,'C').numFmt = accFmt; r+=2;
+
+    const isMinViol = a.violations.some(v=>v.level==='danger'&&v.msg.includes('최저임금'));
+    cell(r,'B').value = isMinViol
+      ? `⛔ 최저임금 위반 가능성: 적법임금(${fmt(a.minTotalPay)}원) 대비 ${fmt(a.minTotalPay-a.curPay)}원 부족`
+      : `✔ 최저임금 기준 적법임금(${fmt(a.minTotalPay)}원) 이상 지급 중`;
+    cell(r,'B').font = isMinViol ? dangerFont : okFont;
+  }
+
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf],{type:'application/octet-stream'});
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${a.company}_근로시간 분석표.xlsx`;
+  link.click();
+}
+
+function runAnalysis(){
+  analysis = calcAnalysis();
+  renderResult(analysis);
+}
+
+updateSizeBadge();
+</script>
+</body>
+</html>
