@@ -53,6 +53,7 @@
   .vi.warn{background:#3b2a0c; border:1px solid #78350f;}
   .vi.ok{background:#0f2e1e; border:1px solid #14532d;}
   .vi.info{background:#1a1b38; border:1px solid #3730a3;}
+  .input-hint{ font-size:11px; color:var(--muted); margin-top:4px; line-height:1.5; }
   .toggle-group{ display:flex; gap:8px; margin-top:6px; }
   .toggle-btn{ flex:1; padding:8px; border-radius:6px; border:1px solid var(--border); background:var(--panel2); color:var(--muted); cursor:pointer; font-size:12.5px; text-align:center; }
   .toggle-btn.active{ background:#1e3a5f; border-color:var(--accent); color:var(--accent); font-weight:700; }
@@ -71,9 +72,9 @@
   <div class="card">
     <h2>① 사업장 규모 판정</h2>
     <label>회사명</label>
-    <input id="f-company" placeholder="예: 황정푸드">
+    <input id="f-company" placeholder="예: 업체명">
     <label>상시근로자 수</label>
-    <input id="f-empcount" type="number" min="1" value="4" oninput="updateSizeBadge()">
+    <input id="f-empcount" type="number" min="1" value="5" oninput="updateSizeBadge()">
     <div id="size-badge" class="size-badge"></div>
   </div>
 
@@ -98,10 +99,12 @@
           <div><label>시업 시간</label><input id="f-start" type="time" value="09:00"></div>
           <div><label>종업 시간</label><input id="f-end" type="time" value="18:00"></div>
         </div>
-        <div class="row2">
+        <div class="row3">
+          <div><label>휴게 시작 시간</label><input id="f-break-start" type="time" value="12:00"></div>
           <div><label>휴게시간(분)</label><input id="f-break" type="number" min="0" value="60"></div>
           <div><label>주 근무일수</label><input id="f-days" type="number" min="1" max="7" value="6"></div>
         </div>
+        <div class="input-hint">휴게 시작 시간을 정확히 입력해야 야간시간(22:00~06:00) 내 휴게 여부를 정확히 계산합니다.</div>
       </div>
     </div>
 
@@ -110,29 +113,41 @@
       <div class="sub-card">
         <div class="sub-card-title">☀ 주간조 근무 조건</div>
         <div class="row2">
-          <div><label>시업</label><input id="s-day-start" type="time" value="06:00"></div>
-          <div><label>종업</label><input id="s-day-end" type="time" value="14:00"></div>
+          <div><label>시업</label><input id="s-day-start" type="time" value="09:00"></div>
+          <div><label>종업</label><input id="s-day-end" type="time" value="21:00"></div>
         </div>
-        <div class="row2">
+        <div class="row3">
+          <div><label>휴게 시작</label><input id="s-day-break-start" type="time" value="13:00"></div>
           <div><label>휴게(분)</label><input id="s-day-break" type="number" min="0" value="60"></div>
-          <div><label>주간조 근무일수/주기</label><input id="s-day-days" type="number" min="0" max="7" value="4"></div>
+          <div>
+            <label>주간조 근무일수</label>
+            <input id="s-day-days" type="number" min="0" max="49" value="4">
+            <div class="input-hint">교대 주기 내 총 일수<br>예) 1주 근무 → 5일</div>
+          </div>
         </div>
       </div>
       <div class="sub-card">
         <div class="sub-card-title">🌙 야간조 근무 조건</div>
         <div class="row2">
-          <div><label>시업</label><input id="s-night-start" type="time" value="22:00"></div>
-          <div><label>종업</label><input id="s-night-end" type="time" value="06:00"></div>
+          <div><label>시업</label><input id="s-night-start" type="time" value="21:00"></div>
+          <div><label>종업</label><input id="s-night-end" type="time" value="09:00"></div>
         </div>
-        <div class="row2">
+        <div class="row3">
+          <div><label>휴게 시작</label><input id="s-night-break-start" type="time" value="03:00"></div>
           <div><label>휴게(분)</label><input id="s-night-break" type="number" min="0" value="60"></div>
-          <div><label>야간조 근무일수/주기</label><input id="s-night-days" type="number" min="0" max="7" value="4"></div>
+          <div>
+            <label>야간조 근무일수</label>
+            <input id="s-night-days" type="number" min="0" max="49" value="4">
+            <div class="input-hint">교대 주기 내 총 일수<br>예) 1주 근무 → 5일</div>
+          </div>
         </div>
+        <div class="input-hint">휴게 시작 시간을 정확히 입력해야 야간시간(22:00~06:00) 내 휴게를 정확히 차감합니다.</div>
       </div>
       <div class="sub-card">
         <div class="sub-card-title">교대 주기</div>
-        <label>교대 주기(주) — 예: 1주 주간 후 1주 야간이면 2</label>
+        <label>몇 주마다 주간↔야간이 반복되나요?</label>
         <input id="s-cycle" type="number" min="1" value="2">
+        <div class="input-hint">예) 1주 주간 → 1주 야간 반복 = <b>2</b> &nbsp;|&nbsp; 2주 주간 → 2주 야간 반복 = <b>4</b></div>
       </div>
     </div>
 
@@ -179,16 +194,33 @@ function updateSizeBadge(){
 
 function toMin(t){ const [h,m]=t.split(':').map(Number); return h*60+m; }
 
-/* 야간근로 시간 계산 (22:00~06:00 겹치는 시간, 단위:시간) */
-function calcNightHours(startStr, endStr){
+/* 야간근로 시간 계산 (22:00~06:00 겹치는 시간, 단위:시간)
+   breakStartStr: 휴게 시작 시간 (입력된 경우 야간구간 내 휴게를 정확히 차감)
+   breakMin: 휴게 시간(분) */
+function calcNightHours(startStr, endStr, breakStartStr, breakMin){
   let s = toMin(startStr);
   let e = toMin(endStr);
   if(e <= s) e += 1440; // 자정 초과 연장
+
   // 야간 구간: [1320,1440] (당일 22~24시) + [1440,1800] (익일 0~6시)
   const wins = [[1320,1440],[1440,1800]];
+
+  // 근무 구간이 야간과 겹치는 시간
   let mins = 0;
   for(const [ns,ne] of wins) mins += Math.max(0, Math.min(e,ne) - Math.max(s,ns));
-  return mins/60;
+
+  // 휴게 시작 시간이 입력된 경우: 휴게 구간이 야간과 겹치는 시간을 차감
+  if(breakStartStr && breakMin > 0){
+    let bs = toMin(breakStartStr);
+    // 근무 시작보다 이른 시간이면 익일로 조정 (예: 근무 21:00 시작, 휴게 03:00 → bs+1440)
+    if(bs < s) bs += 1440;
+    // 그래도 근무 범위(s~e) 안에 없으면 재조정 (시업 전 시간대)
+    if(bs > e) bs -= 1440;
+    const be = bs + breakMin;
+    for(const [ns,ne] of wins) mins -= Math.max(0, Math.min(be,ne) - Math.max(bs,ns));
+  }
+
+  return Math.max(0, mins/60);
 }
 
 function calcAnalysis(){
@@ -206,25 +238,27 @@ function calcAnalysis(){
   let avgWeeklyHours, avgWeeklyNight, cycleWeeks;
 
   if(mode === 'fixed'){
-    const start    = document.getElementById('f-start').value;
-    const end      = document.getElementById('f-end').value;
-    const breakMin = parseFloat(document.getElementById('f-break').value||'0');
-    const days     = parseFloat(document.getElementById('f-days').value||'0');
-    const s = toMin(start), e0 = toMin(end);
+    const start      = document.getElementById('f-start').value;
+    const end        = document.getElementById('f-end').value;
+    const breakStart = document.getElementById('f-break-start').value;
+    const breakMin   = parseFloat(document.getElementById('f-break').value||'0');
+    const days       = parseFloat(document.getElementById('f-days').value||'0');
     const eff = toMin(end) <= toMin(start) ? (toMin(end)+1440-toMin(start)) : (toMin(end)-toMin(start));
     const dailyHours = Math.max(0, eff/60 - breakMin/60);
-    const nightPerDay = calcNightHours(start, end);
-    shifts = [{label:'일반근로', start, end, breakMin, days, dailyHours, nightPerDay}];
+    const nightPerDay = calcNightHours(start, end, breakStart, breakMin);
+    shifts = [{label:'일반근로', start, end, breakStart, breakMin, days, dailyHours, nightPerDay}];
     avgWeeklyHours = dailyHours * days;
     avgWeeklyNight = nightPerDay * days;
     cycleWeeks = 1;
   } else {
     const ds  = document.getElementById('s-day-start').value;
     const de  = document.getElementById('s-day-end').value;
+    const dbs = document.getElementById('s-day-break-start').value;
     const db  = parseFloat(document.getElementById('s-day-break').value||'0');
     const dd  = parseFloat(document.getElementById('s-day-days').value||'0');
     const ns  = document.getElementById('s-night-start').value;
     const ne  = document.getElementById('s-night-end').value;
+    const nbs = document.getElementById('s-night-break-start').value;
     const nb  = parseFloat(document.getElementById('s-night-break').value||'0');
     const nd  = parseFloat(document.getElementById('s-night-days').value||'0');
     cycleWeeks = parseFloat(document.getElementById('s-cycle').value||'2');
@@ -233,12 +267,12 @@ function calcAnalysis(){
     const nEff = toMin(ne)>toMin(ns) ? toMin(ne)-toMin(ns) : toMin(ne)+1440-toMin(ns);
     const dayH   = Math.max(0, dEff/60 - db/60);
     const nightH = Math.max(0, nEff/60 - nb/60);
-    const dayNight   = calcNightHours(ds, de);
-    const nightNight = calcNightHours(ns, ne);
+    const dayNight   = calcNightHours(ds, de, dbs, db);
+    const nightNight = calcNightHours(ns, ne, nbs, nb);
 
     shifts = [
-      {label:'주간조', start:ds, end:de, breakMin:db, days:dd, dailyHours:dayH, nightPerDay:dayNight},
-      {label:'야간조', start:ns, end:ne, breakMin:nb, days:nd, dailyHours:nightH, nightPerDay:nightNight}
+      {label:'주간조', start:ds, end:de, breakStart:dbs, breakMin:db, days:dd, dailyHours:dayH, nightPerDay:dayNight},
+      {label:'야간조', start:ns, end:ne, breakStart:nbs, breakMin:nb, days:nd, dailyHours:nightH, nightPerDay:nightNight}
     ];
 
     const totalCycleHours = dayH*dd + nightH*nd;
@@ -320,6 +354,8 @@ function calcAnalysis(){
 }
 
 function fmt(n){ return Math.round(n).toLocaleString('ko-KR'); }
+function toMin2(t){ const [h,m]=t.split(':').map(Number); return h*60+m; }
+function minsToTime(m){ const h=Math.floor((m%1440)/60), mn=m%60; return `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}`; }
 
 function renderResult(a){
   const sizeTag = a.isOver5
@@ -332,7 +368,7 @@ function renderResult(a){
   const weekColor = extra52||extraOT ? 'var(--danger)' : (a.avgWeeklyHours>48?'var(--warn)':'var(--ok)');
 
   const shiftRows = a.shifts.map(s=>
-    `<tr><td>${s.label}</td><td>${s.start}~${s.end} (휴게 ${s.breakMin}분)</td><td>${s.dailyHours.toFixed(2)}h × ${s.days}일${a.mode==='shift'?'/주기':''}</td><td>${(s.dailyHours*s.days).toFixed(2)}h</td><td>${(s.nightPerDay*s.days).toFixed(2)}h</td></tr>`
+    `<tr><td>${s.label}</td><td>${s.start}~${s.end}<br><span style="color:var(--muted);font-size:11px">휴게 ${s.breakStart} ~ ${minsToTime(toMin2(s.breakStart)+s.breakMin)} (${s.breakMin}분)</span></td><td>${s.dailyHours.toFixed(2)}h × ${s.days}일${a.mode==='shift'?'/주기':''}</td><td>${(s.dailyHours*s.days).toFixed(2)}h</td><td>${(s.nightPerDay*s.days).toFixed(2)}h</td></tr>`
   ).join('');
 
   const nightRowMinwage = a.isOver5 && a.nightMonthlyHours > 0
